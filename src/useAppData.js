@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from './supabaseClient.js';
+import { supabase, configError } from './supabaseClient.js';
 
 const DEFAULT_PAR = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4];
 const DEFAULT_SI = [7, 3, 15, 11, 1, 17, 5, 13, 9, 8, 4, 16, 12, 2, 18, 6, 14, 10];
@@ -147,7 +147,7 @@ async function fetchAll() {
 
 export function useAppData() {
   const [state, setState] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(configError ? new Error(configError) : null);
   const refetchTimer = useRef(null);
   const mounted = useRef(true);
 
@@ -167,6 +167,7 @@ export function useAppData() {
   }, [refetch]);
 
   useEffect(() => {
+    if (configError) return; // nothing to fetch or subscribe to without a client
     mounted.current = true;
     refetch();
 
