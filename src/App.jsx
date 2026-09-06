@@ -1197,7 +1197,7 @@ function TeamsTab({ state, d, standings }) {
       />
       <PointSourcePanel
         title="Bonus"
-        sub="Points each team picked up from awards set up in Extras."
+        sub="Points each team picked up from awards set up in Scoring Bonus."
         state={state}
         standings={standings}
         field="bonus"
@@ -1332,7 +1332,7 @@ function IndividualsTab({ state, d, standings }) {
           Net stableford off full handicap for the day.
           {cfg && cfg.enabled
             ? ' Points shown in orange go to the player’s team.'
-            : ' This table is not awarding team points — turn it on in Extras.'}
+            : ' This table is not awarding team points — turn it on in Scoring Bonus.'}
         </div>
       </Panel>
     </div>
@@ -1526,7 +1526,7 @@ function OverviewTab({ state }) {
 
         <TimelineStep colour={TIMELINE_COLOURS.indiv} mark={3} title="Individual results">
           {enabledIndiv.length === 0 ? (
-            'Not currently switched on for any table — see Extras.'
+            'Not currently switched on for any table — see Scoring Bonus.'
           ) : (
             <>
               When switched on, a player's finishing position in net stableford hands points straight to their team.{' '}
@@ -1545,11 +1545,11 @@ function OverviewTab({ state }) {
 
         <TimelineStep colour={TIMELINE_COLOURS.bonus} mark={4} title="Bonus awards">
           {state.awards.length === 0 ? (
-            'No bonus awards set up yet — add some in Extras.'
+            'No bonus awards set up yet — add some in Scoring Bonus.'
           ) : (
             <>
-              Longest drive, closest to the pin, and anything else the group sets up in Extras — straight to the
-              winner's team.{' '}
+              Longest drive, closest to the pin, and anything else the group sets up in Scoring Bonus — straight to
+              the winner's team.{' '}
               {state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')').join(' · ')}.
             </>
           )}
@@ -1814,14 +1814,14 @@ const TABS = [
   ['card', 'Scorecard'],
   ['teams', 'Team Standings'],
   ['players', 'Player Standings'],
-  ['extras', 'Extras'],
+  ['extras', 'Scoring Bonus'],
   ['setup', 'Setup'],
   ['book', 'Book'],
 ];
 
 export default function App() {
   const { state, error } = useAppData();
-  const [tab, setTab] = useState('card');
+  const [tab, setTab] = useState('overview');
 
   if (error) {
     return (
@@ -1853,10 +1853,8 @@ function Shell({ state, tab, setTab }) {
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>{state.title}</div>
-              <div style={{ fontSize: 12, color: '#9DB6CE', marginTop: 5 }}>
-                {state.subtitle} · two days, three pairs
-              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>{state.subtitle}</div>
+              <div style={{ fontSize: 12, color: '#9DB6CE', marginTop: 5 }}>Two days, three pairs</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: MONO, fontSize: 12, color: '#9DB6CE' }}>Leading</div>
