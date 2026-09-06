@@ -241,7 +241,7 @@ function useStandings(state, d) {
         const pts = res.points[t.id] || 0;
         if (pts) {
           ledger[t.id][di === 0 ? 'day1' : 'day2'] += pts;
-          ledger[t.id].rows.push({ label: day.label + ' — ' + formatName(day.format), pts });
+          ledger[t.id].rows.push({ kind: 'day', label: day.label + ' — ' + formatName(day.format), pts });
         }
       });
     });
@@ -259,7 +259,7 @@ function useStandings(state, d) {
         const tid = d.teamOf[pid];
         if (!tid || !awarded[pid]) return;
         ledger[tid].indiv += awarded[pid];
-        ledger[tid].rows.push({ label: label + ' (' + d.byId[pid].name + ')', pts: awarded[pid] });
+        ledger[tid].rows.push({ kind: 'individual', label: label + ' (' + d.byId[pid].name + ')', pts: awarded[pid] });
       });
     });
 
@@ -272,7 +272,7 @@ function useStandings(state, d) {
         if (!tid || !ledger[tid]) return;
         ledger[tid].bonus += pts;
         const who = aw.scope === 'team' ? '' : ' (' + (d.byId[w] ? d.byId[w].name : '') + ')';
-        ledger[tid].rows.push({ label: aw.name + who, pts });
+        ledger[tid].rows.push({ kind: 'bonus', label: aw.name + who, pts });
       });
     });
 
@@ -1185,7 +1185,54 @@ function TeamsTab({ state, d, standings }) {
           </div>
         </Panel>
       ))}
+
+      <PointSourcePanel
+        title="Individual"
+        sub="Points each team picked up from Day 1 / Day 2 individual results."
+        state={state}
+        standings={standings}
+        field="indiv"
+        kind="individual"
+        emptyText="No individual points yet."
+      />
+      <PointSourcePanel
+        title="Bonus"
+        sub="Points each team picked up from awards set up in Extras."
+        state={state}
+        standings={standings}
+        field="bonus"
+        kind="bonus"
+        emptyText="No bonus points yet."
+      />
     </div>
+  );
+}
+
+function PointSourcePanel({ title, sub, state, standings, field, kind, emptyText }) {
+  const items = state.teams.map((t) => ({ id: t.id, team: t, value: standings.ledger[t.id][field] || 0 }));
+  const groups = rankGroups(items, (a, b) => b.value - a.value);
+  return (
+    <Panel>
+      <H sub={sub}>{title}</H>
+      {groups.map((g, gi) =>
+        g.map((it) => {
+          const rows = standings.ledger[it.team.id].rows.filter((r) => r.kind === kind);
+          return (
+            <div key={it.id} style={{ padding: '6px 0', borderBottom: '1px solid ' + C.line }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 26, fontFamily: MONO, color: C.ink2, fontSize: 12 }}>{ORDINALS[gi]}</div>
+                <div style={{ width: 6, height: 20, background: it.team.colour, borderRadius: 2 }} />
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink }}>{it.team.name}</div>
+                <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.clay }}>+{fmt(it.value)}</div>
+              </div>
+              <div style={{ fontSize: 11, color: C.ink2, marginLeft: 42, marginTop: 2 }}>
+                {rows.length ? rows.map((r) => r.label + ': +' + fmt(r.pts)).join(' · ') : emptyText}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </Panel>
   );
 }
 
