@@ -109,10 +109,6 @@ function useDerived(state) {
     };
     const teamCombined = (dayId, team) =>
       team.players.reduce((a, pid) => a + playerTotal(dayId, pid), 0);
-    const teamLowest = (dayId, team) => {
-      if (!team.players.length) return 0;
-      return Math.min(...team.players.map((pid) => playerTotal(dayId, pid)));
-    };
     const teamHighest = (dayId, team) => {
       if (!team.players.length) return 0;
       return Math.max(...team.players.map((pid) => playerTotal(dayId, pid)));
@@ -159,7 +155,6 @@ function useDerived(state) {
       teamHole,
       teamTotal,
       teamCombined,
-      teamLowest,
       teamHighest,
       dayStarted,
       dayComplete,
@@ -180,13 +175,14 @@ function useStandings(state, d) {
         total: d.teamTotal(day.id, t),
         combined: d.teamCombined(day.id, t),
         highest: d.teamHighest(day.id, t),
-        lowest: d.teamLowest(day.id, t),
       }));
+      // With exactly two players per team, combined = highest + lowest, so once
+      // combined and highest agree, lowest is already forced to agree too --
+      // it can never break a tie and isn't worth carrying as a criterion.
       const cmp = (a, b) => {
         if (b.total !== a.total) return b.total - a.total;
         if (day.format === 'betterball' && b.combined !== a.combined) return b.combined - a.combined;
         if (b.highest !== a.highest) return b.highest - a.highest;
-        if (b.lowest !== a.lowest) return b.lowest - a.lowest;
         return 0;
       };
       const groups = rankGroups(items, cmp);
@@ -1189,8 +1185,8 @@ function TeamsTab({ state, d, standings }) {
           )}
           <div style={{ fontSize: 11, color: C.ink2, marginTop: 8 }}>
             {day.format === 'betterball'
-              ? "Ties split on combined stableford, then the pair's highest individual score, then their lowest."
-              : "Ties split on the pair's highest individual score, then their lowest."}
+              ? "Ties split on combined stableford, then the pair's highest individual score."
+              : "Ties split on the pair's highest individual score."}
           </div>
         </Panel>
       ))}
@@ -1528,8 +1524,8 @@ function OverviewTab({ state }) {
             {formatExplain(day.format)} Team points for 1st / 2nd / 3rd:{' '}
             <strong style={{ color: C.ink, fontFamily: MONO }}>{day.teamPoints.join(' / ')}</strong>.{' '}
             {day.format === 'betterball'
-              ? "Ties split on combined stableford, then the pair's highest individual score, then their lowest."
-              : "Ties split on the pair's highest individual score, then their lowest."}
+              ? "Ties split on combined stableford, then the pair's highest individual score."
+              : "Ties split on the pair's highest individual score."}
           </TimelineStep>
         ))}
 
