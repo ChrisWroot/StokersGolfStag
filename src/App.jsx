@@ -1622,7 +1622,11 @@ function OverviewTab({ state }) {
         </TimelineStep>
 
         <TimelineStep mark="★" title="Team total" last>
-          All four add up to the number on the Team Standings tab.
+          All four add up to the number on the Team Standings tab. If two teams are still tied on that total, it's
+          broken by combined raw stableford across both days —{' '}
+          {state.days.map((day) => day.label + "'s " + formatName(day.format).toLowerCase() + ' total').join(' plus ')}
+          , whichever team scored higher over both rounds wins the tie. Team Standings shows the working whenever
+          this actually decides an order.
         </TimelineStep>
       </Panel>
     </div>
