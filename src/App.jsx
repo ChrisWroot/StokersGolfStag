@@ -1523,13 +1523,30 @@ function AwardRow({ aw, state }) {
 
 /* --------------------------------- Overview -------------------------------- */
 
-function formatExplain(format) {
+function formatExplainBullets(format) {
   return format === 'betterball'
-    ? "Both partners play their own ball on every hole. Only the better (higher-points) of the two scores counts toward the pair's total for that hole."
-    : "Both partners play their own ball on every hole, and their stableford points are added together — every hole, from both players, counts.";
+    ? [
+        'Both partners play their own ball on every hole.',
+        "Only the better (higher-points) of the two scores counts toward the pair's total for that hole.",
+      ]
+    : [
+        'Both partners play their own ball on every hole, and their stableford points are added together — every hole, from both players, counts.',
+      ];
 }
 
 const TIMELINE_COLOURS = { day1: C.sea, day2: C.olive, indiv: C.sun, bonus: C.clay };
+
+function BulletList({ items }) {
+  return (
+    <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {items.map((item, i) => (
+        <li key={i} style={{ fontSize: 12, color: C.ink2, lineHeight: 1.5 }}>
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function TimelineStep({ colour, mark, title, children, last }) {
   return (
@@ -1582,51 +1599,60 @@ function OverviewTab({ state }) {
 
         {state.days.map((day, i) => (
           <TimelineStep key={day.id} colour={i === 0 ? TIMELINE_COLOURS.day1 : TIMELINE_COLOURS.day2} mark={i + 1} title={day.label + ' — ' + formatName(day.format)}>
-            {formatExplain(day.format)} Team points for 1st / 2nd / 3rd:{' '}
-            <strong style={{ color: C.ink, fontFamily: MONO }}>{day.teamPoints.join(' / ')}</strong>.{' '}
-            {day.format === 'betterball'
-              ? "Ties split on combined stableford, then the pair's highest individual score."
-              : "Ties split on the pair's highest individual score."}
+            <BulletList
+              items={[
+                ...formatExplainBullets(day.format),
+                <>
+                  Team points for 1st / 2nd / 3rd: <strong style={{ color: C.ink, fontFamily: MONO }}>{day.teamPoints.join(' / ')}</strong>.
+                </>,
+                day.format === 'betterball'
+                  ? "Ties split on combined stableford, then the pair's highest individual score."
+                  : "Ties split on the pair's highest individual score.",
+              ]}
+            />
           </TimelineStep>
         ))}
 
         <TimelineStep colour={TIMELINE_COLOURS.indiv} mark={3} title="Individual results">
           {enabledIndiv.length === 0 ? (
-            'Not currently switched on for any table — see Setup.'
+            <BulletList items={['Not currently switched on for any table — see Setup.']} />
           ) : (
-            <>
-              When switched on, a player's finishing position in net stableford hands points straight to their team.{' '}
-              {enabledIndiv
-                .map(
+            <BulletList
+              items={[
+                "A player's finishing position in net stableford hands points straight to their team.",
+                ...enabledIndiv.map(
                   (key) =>
                     (key === 'combined' ? 'Overall' : key === 'd1' ? 'Day 1' : 'Day 2') +
                     ' ' +
                     state.individual[key].points.join('/')
-                )
-                .join(' · ')}
-              .
-            </>
+                ),
+              ]}
+            />
           )}
         </TimelineStep>
 
         <TimelineStep colour={TIMELINE_COLOURS.bonus} mark={4} title="Bonus awards">
           {state.awards.length === 0 ? (
-            'No bonus awards set up yet — add some in Setup.'
+            <BulletList items={['No bonus awards set up yet — add some in Setup.']} />
           ) : (
-            <>
-              Longest drive, closest to the pin, and anything else the group sets up in Setup — straight to
-              the winner's team.{' '}
-              {state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')').join(' · ')}.
-            </>
+            <BulletList
+              items={[
+                'Longest drive, closest to the pin, and anything else the group sets up in Setup — straight to the winner’s team.',
+                ...state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')'),
+              ]}
+            />
           )}
         </TimelineStep>
 
         <TimelineStep mark="★" title="Team total" last>
-          All four add up to the number on the Team Standings tab. If two teams are still tied on that total, it's
-          broken by combined raw stableford across both days —{' '}
-          {state.days.map((day) => day.label + "'s " + formatName(day.format).toLowerCase() + ' total').join(' plus ')}
-          , whichever team scored higher over both rounds wins the tie. Team Standings shows the working whenever
-          this actually decides an order.
+          <BulletList
+            items={[
+              'All four add up to the number on the Team Standings tab.',
+              "If two teams are still tied on that total, it's broken by combined raw stableford across both days — " +
+                state.days.map((day) => day.label + "'s " + formatName(day.format).toLowerCase() + ' total').join(' plus '),
+              'Whichever team scored higher over both rounds wins the tie.',
+            ]}
+          />
         </TimelineStep>
       </Panel>
     </div>
