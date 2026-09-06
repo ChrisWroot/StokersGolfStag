@@ -83,7 +83,7 @@ function useDerived(state) {
     state.days.forEach((day) => {
       points[day.id] = {};
       const ph = {};
-      state.players.forEach((p) => (ph[p.id] = playingHcp(p.hcp, day.allowance)));
+      state.players.forEach((p) => (ph[p.id] = playingHcp(p.hcp, 100)));
       state.players.forEach((p) => {
         const row = (state.scores[day.id] && state.scores[day.id][p.id]) || Array(18).fill(null);
         points[day.id][p.id] = row.map((g, i) =>
@@ -452,7 +452,6 @@ function SetupTab({ state, d }) {
   const patchDay = (id, patch) => {
     const dbPatch = {};
     if ('course' in patch) dbPatch.course = patch.course;
-    if ('allowance' in patch) dbPatch.allowance = patch.allowance;
     if ('format' in patch) dbPatch.format = patch.format;
     if ('teamPoints' in patch) dbPatch.team_points = patch.teamPoints;
     api.updateDay(id, dbPatch);
@@ -461,7 +460,7 @@ function SetupTab({ state, d }) {
   return (
     <div>
       <Panel>
-        <H sub="Handicaps are used at the allowance set for each day.">Players</H>
+        <H sub="Full handicap allowance, both days.">Players</H>
         {state.players.map((p) => (
           <PlayerSetupRow key={p.id} p={p} state={state} d={d} />
         ))}
@@ -499,14 +498,6 @@ function SetupTab({ state, d }) {
                 value={day.course}
                 placeholder="Course name"
                 onCommit={(v) => patchDay(day.id, { course: v })}
-              />
-            </Field>
-            <Field label="Handicap allowance %">
-              <DebouncedInput
-                style={numStyle}
-                inputMode="numeric"
-                value={day.allowance}
-                onCommit={(v) => patchDay(day.id, { allowance: v === '' ? 0 : Number(v) })}
               />
             </Field>
             <Field label="Format">
@@ -723,14 +714,7 @@ function ScorecardTab({ state, d, standings }) {
       <Panel pad={0} style={{ overflow: 'hidden' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid ' + C.line }}>
           <H
-            sub={
-              (day.course || 'Course to be confirmed') +
-              ' · par ' +
-              sum(day.par) +
-              ' · ' +
-              day.allowance +
-              '% handicap'
-            }
+            sub={(day.course || 'Course to be confirmed') + ' · par ' + sum(day.par)}
             right={
               standings.dayResults[day.id].started ? (
                 <Tag tone={standings.dayResults[day.id].complete ? 'green' : 'amber'}>
@@ -827,7 +811,7 @@ function ScorecardTab({ state, d, standings }) {
               </tr>
 
               {state.teams.map((t) => {
-                const ph = t.players.map((pid) => playingHcp(d.byId[pid].hcp, day.allowance));
+                const ph = t.players.map((pid) => playingHcp(d.byId[pid].hcp, 100));
                 const pairWinners = day.format === 'betterball' ? d.pairContribution[day.id][t.id] : null;
                 return (
                   <React.Fragment key={t.id}>
@@ -890,7 +874,7 @@ function ScorecardTab({ state, d, standings }) {
                     <PlayerRow
                       key={p.id}
                       player={p}
-                      ph={playingHcp(p.hcp, day.allowance)}
+                      ph={playingHcp(p.hcp, 100)}
                       day={day}
                       scores={(state.scores[day.id] && state.scores[day.id][p.id]) || Array(18).fill(null)}
                       pts={pts[p.id]}
@@ -1148,7 +1132,9 @@ function TeamsTab({ state, d, standings }) {
                   ))}
                   {state.days.map((day) => (
                     <div key={day.id} style={{ fontSize: 11, color: C.ink2, marginTop: 6 }}>
-                      {day.label}: {d.teamTotal(day.id, t)} {day.format === 'betterball' ? 'better ball' : 'combined'} · {d.teamCombined(day.id, t)} pair total · {d.teamLowest(day.id, t)} lowest man
+                      <strong style={{ color: C.ink }}>{day.label}:</strong> {d.teamTotal(day.id, t)}{' '}
+                      {day.format === 'betterball' ? 'better ball' : 'combined'}
+                      {standings.dayResults[day.id].started ? ' — ' + playerBreakdownText(state, d, day, t) : ''}
                     </div>
                   ))}
                 </div>
@@ -1452,8 +1438,7 @@ function OverviewTab({ state }) {
           </H>
           <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.6, marginBottom: 10 }}>{formatExplain(day.format)}</div>
           <div style={{ fontSize: 12, color: C.ink2 }}>
-            Handicap allowance: <strong style={{ color: C.ink }}>{day.allowance}%</strong> · Team points for 1st / 2nd
-            / 3rd: <strong style={{ color: C.ink }}>{day.teamPoints.join(' / ')}</strong>
+            Team points for 1st / 2nd / 3rd: <strong style={{ color: C.ink }}>{day.teamPoints.join(' / ')}</strong>
           </div>
           <div style={{ fontSize: 11, color: C.ink2, marginTop: 6 }}>
             {day.format === 'betterball'

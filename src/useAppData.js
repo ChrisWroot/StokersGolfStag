@@ -46,7 +46,6 @@ function assemble(rows) {
       course: row.course ?? '',
       par: row.par && row.par.length === 18 ? row.par : [...DEFAULT_PAR],
       si: row.si && row.si.length === 18 ? row.si : [...DEFAULT_SI],
-      allowance: row.allowance != null ? Number(row.allowance) : 100,
       format: row.format ?? (id === 'd1' ? 'betterball' : 'combined'),
       teamPoints: row.team_points && row.team_points.length === 3 ? row.team_points : [4, 2, 0],
     };

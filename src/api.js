@@ -97,7 +97,7 @@ export async function addAward(nextSortOrder) {
   const award = must(
     await supabase.from('awards').insert({ name: 'New bonus', scope: 'player', sort_order: nextSortOrder }).select().single()
   );
-  must(await supabase.from('award_places').insert({ award_id: award.id, place: 1, points: 2, winner_player_id: null, winner_team_id: null }));
+  must(await supabase.from('award_places').insert({ award_id: award.id, place: 1, points: 1, winner_player_id: null, winner_team_id: null }));
 }
 
 export async function updateAwardName(id, name) {
@@ -289,13 +289,8 @@ export async function loadDemoData() {
     }
   }
 
-  must(
-    await supabase
-      .from('days')
-      .update({ course: 'Real Club de Golf Guadalhorce', allowance: 90 })
-      .eq('id', 'd1')
-  );
-  must(await supabase.from('days').update({ course: 'Añoreta Golf', allowance: 100 }).eq('id', 'd2'));
+  must(await supabase.from('days').update({ course: 'Real Club de Golf Guadalhorce' }).eq('id', 'd1'));
+  must(await supabase.from('days').update({ course: 'Añoreta Golf' }).eq('id', 'd2'));
 
   const d1 = {
     Chris: [4, 5, 3, 5, 4, 5, 3, 4, 5, 4, 3, 4, 6, 4, 4, 3, 4, 4],
