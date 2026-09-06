@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase, configError } from './supabaseClient.js';
+import { onDataChange } from './dataBus.js';
 
 const DEFAULT_PAR = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4];
 const DEFAULT_SI = [7, 3, 15, 11, 1, 17, 5, 13, 9, 8, 4, 16, 12, 2, 18, 6, 14, 10];
@@ -171,6 +172,10 @@ export function useAppData() {
     mounted.current = true;
     refetch();
 
+    // Refetch immediately after any of our own writes (api.js), rather than
+    // waiting purely on the realtime round trip.
+    const unsubscribeLocal = onDataChange(scheduleRefetch);
+
     const channel = supabase.channel('stokers-stag-changes');
     TABLES.forEach((table) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefetch);
@@ -180,6 +185,7 @@ export function useAppData() {
     return () => {
       mounted.current = false;
       if (refetchTimer.current) clearTimeout(refetchTimer.current);
+      unsubscribeLocal();
       supabase.removeChannel(channel);
     };
   }, [refetch, scheduleRefetch]);

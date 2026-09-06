@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient.js';
+import { emitDataChange } from './dataBus.js';
 
 const DEFAULT_PAR = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 3, 4, 5, 4, 4, 3, 5, 4];
 const DEFAULT_SI = [7, 3, 15, 11, 1, 17, 5, 13, 9, 8, 4, 16, 12, 2, 18, 6, 14, 10];
@@ -6,6 +7,7 @@ const TEAM_COLOURS = ['#1D6FA5', '#C1440E', '#6B8F3A'];
 
 function must(res) {
   if (res.error) throw res.error;
+  emitDataChange();
   return res.data;
 }
 
@@ -246,7 +248,7 @@ export async function resetEverything() {
   await wipeAll();
   await resetDays();
   await resetIndividualConfig();
-  must(await updateEvent({ title: "Stoker's Stag", subtitle: 'Malaga' }));
+  await updateEvent({ title: "Stoker's Stag", subtitle: 'Malaga' });
   must(
     await supabase.from('teams').insert(
       TEAM_COLOURS.map((colour, i) => ({ name: 'Team ' + (i + 1), colour, sort_order: i }))
@@ -262,7 +264,7 @@ export async function resetEverything() {
 export async function loadDemoData() {
   await wipeAll();
   await resetIndividualConfig();
-  must(await updateEvent({ title: "Stoker's Stag", subtitle: 'Malaga' }));
+  await updateEvent({ title: "Stoker's Stag", subtitle: 'Malaga' });
 
   const hcp = { Chris: 11, James: 12, Joe: 19, Charlie: 8, Bavs: 15, Dan: 21 };
   const roster = [
