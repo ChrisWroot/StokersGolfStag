@@ -129,11 +129,24 @@ function useDerived(state) {
       });
     };
 
-    const holeBest = {};
+    // Betterball only: for each team/hole, which partner(s) actually supplied
+    // the score that counted. Not meaningful for combined format (both count).
+    const pairContribution = {};
     state.days.forEach((day) => {
-      holeBest[day.id] = Array.from({ length: 18 }, (_, h) => {
-        const vals = state.players.map((p) => points[day.id][p.id][h]).filter((v) => v != null);
-        return vals.length ? Math.max(...vals) : null;
+      pairContribution[day.id] = {};
+      state.teams.forEach((t) => {
+        pairContribution[day.id][t.id] =
+          day.format === 'betterball'
+            ? Array.from({ length: 18 }, (_, h) => {
+                const vals = t.players
+                  .map((pid) => ({ pid, v: points[day.id][pid][h] }))
+                  .filter((x) => x.v != null);
+                if (!vals.length) return [];
+                const max = Math.max(...vals.map((x) => x.v));
+                if (max <= 0) return [];
+                return vals.filter((x) => x.v === max).map((x) => x.pid);
+              })
+            : Array.from({ length: 18 }, () => []);
       });
     });
 
@@ -150,7 +163,7 @@ function useDerived(state) {
       teamHighest,
       dayStarted,
       dayComplete,
-      holeBest,
+      pairContribution,
     };
   }, [state]);
 }
@@ -661,6 +674,11 @@ const cellBase = {
 };
 const cellHead = { ...cellBase, background: '#F6F7F3', fontWeight: 700, padding: '6px 8px', whiteSpace: 'nowrap' };
 
+function toParLabel(diff) {
+  if (diff === 0) return 'E';
+  return (diff > 0 ? '+' : '') + diff;
+}
+
 /* -------------------------------- Scorecard ------------------------------- */
 
 function ScorecardTab({ state, d, standings }) {
@@ -672,6 +690,7 @@ function ScorecardTab({ state, d, standings }) {
   const unassigned = state.players.filter((p) => !d.teamOf[p.id]);
 
   const sub = (arr, a, b) => sum(arr.slice(a, b));
+  const COLSPAN = 24; // sticky label + 9 + OUT + 9 + IN + TOT(pts) + GROSS + +/-
 
   return (
     <div>
@@ -748,39 +767,60 @@ function ScorecardTab({ state, d, standings }) {
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontFamily: MONO, fontSize: 12, minWidth: 720 }}>
+          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontFamily: MONO, fontSize: 12, minWidth: 820 }}>
             <thead>
               <tr>
                 <th style={{ ...stickyHead }}>Hole</th>
-                {holes.map((h) => (
+                {holes.slice(0, 9).map((h) => (
                   <th key={h} style={cellHead}>
                     {h + 1}
                   </th>
                 ))}
                 <th style={{ ...cellHead, background: '#EDEFE8' }}>Out</th>
+                {holes.slice(9, 18).map((h) => (
+                  <th key={h} style={cellHead}>
+                    {h + 1}
+                  </th>
+                ))}
                 <th style={{ ...cellHead, background: '#EDEFE8' }}>In</th>
                 <th style={{ ...cellHead, background: '#EDEFE8' }}>Tot</th>
+                <th style={{ ...cellHead, background: '#EDEFE8' }}>Gross</th>
+                <th style={{ ...cellHead, background: '#EDEFE8' }}>+/-</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td style={stickyCell}>Par</td>
-                {day.par.map((p, i) => (
+                {day.par.slice(0, 9).map((p, i) => (
                   <td key={i} style={cellMuted}>
                     {p}
                   </td>
                 ))}
                 <td style={cellMuted}>{sub(day.par, 0, 9)}</td>
-                <td style={cellMuted}>{sub(day.par, 9, 18)}</td>
-                <td style={cellMuted}>{sum(day.par)}</td>
-              </tr>
-              <tr>
-                <td style={stickyCell}>SI</td>
-                {day.si.map((p, i) => (
+                {day.par.slice(9, 18).map((p, i) => (
                   <td key={i} style={cellMuted}>
                     {p}
                   </td>
                 ))}
+                <td style={cellMuted}>{sub(day.par, 9, 18)}</td>
+                <td style={cellMuted}>{sum(day.par)}</td>
+                <td style={cellMuted} />
+                <td style={cellMuted} />
+              </tr>
+              <tr>
+                <td style={stickyCell}>SI</td>
+                {day.si.slice(0, 9).map((p, i) => (
+                  <td key={i} style={cellMuted}>
+                    {p}
+                  </td>
+                ))}
+                <td style={cellMuted} />
+                {day.si.slice(9, 18).map((p, i) => (
+                  <td key={i} style={cellMuted}>
+                    {p}
+                  </td>
+                ))}
+                <td style={cellMuted} />
                 <td style={cellMuted} />
                 <td style={cellMuted} />
                 <td style={cellMuted} />
@@ -788,10 +828,11 @@ function ScorecardTab({ state, d, standings }) {
 
               {state.teams.map((t) => {
                 const ph = t.players.map((pid) => playingHcp(d.byId[pid].hcp, day.allowance));
+                const pairWinners = day.format === 'betterball' ? d.pairContribution[day.id][t.id] : null;
                 return (
                   <React.Fragment key={t.id}>
                     <tr>
-                      <td colSpan={22} style={{ ...cellBase, borderLeft: 'none', borderRight: 'none', textAlign: 'left', background: t.colour + '14', padding: '6px 10px', fontFamily: SANS, fontWeight: 700, color: t.colour }}>
+                      <td colSpan={COLSPAN} style={{ ...cellBase, borderLeft: 'none', borderRight: 'none', textAlign: 'left', background: t.colour + '14', padding: '6px 10px', fontFamily: SANS, fontWeight: 700, color: t.colour }}>
                         {t.name}
                       </td>
                     </tr>
@@ -803,7 +844,7 @@ function ScorecardTab({ state, d, standings }) {
                         day={day}
                         scores={(state.scores[day.id] && state.scores[day.id][pid]) || Array(18).fill(null)}
                         pts={pts[pid]}
-                        holeBest={d.holeBest[day.id]}
+                        pairWinners={pairWinners}
                       />
                     ))}
                     {t.players.length > 0 && (
@@ -811,16 +852,27 @@ function ScorecardTab({ state, d, standings }) {
                         <td style={{ ...stickyCell, fontFamily: SANS, fontWeight: 700, color: t.colour }}>
                           {day.format === 'betterball' ? 'Best' : 'Pair'}
                         </td>
-                        {holes.map((h) => (
+                        {holes.slice(0, 9).map((h) => (
                           <td key={h} style={{ ...cellBase, background: t.colour + '10', fontWeight: 700, padding: '7px 0' }}>
                             {d.teamHole(day.id, t, h) ?? ''}
                           </td>
                         ))}
-                        {[[0, 9], [9, 18], [0, 18]].map(([a, b], i) => (
-                          <td key={i} style={{ ...cellBase, background: t.colour + '20', fontWeight: 700, padding: '7px 0' }}>
-                            {holes.slice(a, b).reduce((acc, h) => acc + (d.teamHole(day.id, t, h) || 0), 0)}
+                        <td style={{ ...cellBase, background: t.colour + '20', fontWeight: 700, padding: '7px 0' }}>
+                          {holes.slice(0, 9).reduce((acc, h) => acc + (d.teamHole(day.id, t, h) || 0), 0)}
+                        </td>
+                        {holes.slice(9, 18).map((h) => (
+                          <td key={h} style={{ ...cellBase, background: t.colour + '10', fontWeight: 700, padding: '7px 0' }}>
+                            {d.teamHole(day.id, t, h) ?? ''}
                           </td>
                         ))}
+                        <td style={{ ...cellBase, background: t.colour + '20', fontWeight: 700, padding: '7px 0' }}>
+                          {holes.slice(9, 18).reduce((acc, h) => acc + (d.teamHole(day.id, t, h) || 0), 0)}
+                        </td>
+                        <td style={{ ...cellBase, background: t.colour + '20', fontWeight: 700, padding: '7px 0' }}>
+                          {holes.reduce((acc, h) => acc + (d.teamHole(day.id, t, h) || 0), 0)}
+                        </td>
+                        <td style={{ ...cellBase, background: t.colour + '10', padding: '7px 0' }}>–</td>
+                        <td style={{ ...cellBase, background: t.colour + '10', padding: '7px 0' }}>–</td>
                       </tr>
                     )}
                   </React.Fragment>
@@ -830,7 +882,7 @@ function ScorecardTab({ state, d, standings }) {
               {unassigned.length > 0 && (
                 <>
                   <tr>
-                    <td colSpan={22} style={{ ...cellBase, borderLeft: 'none', borderRight: 'none', textAlign: 'left', background: '#F6F7F3', padding: '6px 10px', fontFamily: SANS, fontWeight: 700, color: C.ink2 }}>
+                    <td colSpan={COLSPAN} style={{ ...cellBase, borderLeft: 'none', borderRight: 'none', textAlign: 'left', background: '#F6F7F3', padding: '6px 10px', fontFamily: SANS, fontWeight: 700, color: C.ink2 }}>
                       Not in a team yet
                     </td>
                   </tr>
@@ -842,7 +894,7 @@ function ScorecardTab({ state, d, standings }) {
                       day={day}
                       scores={(state.scores[day.id] && state.scores[day.id][p.id]) || Array(18).fill(null)}
                       pts={pts[p.id]}
-                      holeBest={d.holeBest[day.id]}
+                      pairWinners={null}
                     />
                   ))}
                 </>
@@ -852,7 +904,9 @@ function ScorecardTab({ state, d, standings }) {
         </div>
         <div style={{ padding: '10px 14px', fontSize: 11, color: C.ink2, borderTop: '1px solid ' + C.line, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>Enter gross strokes — net and points fill in underneath.</span>
-          <Legend swatch={{ background: '#fff', border: '1.5px solid ' + C.sun }}>Hole winner</Legend>
+          {day.format === 'betterball' && (
+            <Legend swatch={{ background: '#fff', border: '1.5px solid ' + C.good }}>Counted for the pair</Legend>
+          )}
           <Legend swatch={{ background: '#fff', border: '1.3px solid ' + C.ink, borderRadius: 12 }}>Birdie or better</Legend>
           <Legend swatch={{ background: '#fff', border: '1.3px solid ' + C.ink, borderRadius: 3 }}>Bogey or worse</Legend>
           <span>— doubled for eagle+ or double bogey+, off the gross score.</span>
@@ -862,16 +916,25 @@ function ScorecardTab({ state, d, standings }) {
   );
 }
 
-function PlayerRow({ player, ph, day, scores, pts, holeBest }) {
+function PlayerRow({ player, ph, day, scores, pts, pairWinners }) {
   const holes = Array.from({ length: 18 }, (_, i) => i);
   const range = (a, b) => sum(pts.slice(a, b));
+
+  const grossRange = (a, b) => sum(scores.slice(a, b));
+  const parPlayed = (a, b) =>
+    day.par.slice(a, b).reduce((acc, p, idx) => (scores[a + idx] != null ? acc + p : acc), 0);
+  const anyPlayed = (a, b) => scores.slice(a, b).some((v) => v != null);
+  const grossTotal = grossRange(0, 18);
+  const toPar = anyPlayed(0, 18) ? toParLabel(grossTotal - parPlayed(0, 18)) : '–';
+  const toParColor = !anyPlayed(0, 18) ? C.ink2 : grossTotal - parPlayed(0, 18) < 0 ? C.good : grossTotal - parPlayed(0, 18) > 0 ? C.clay : C.ink2;
+
   return (
     <tr>
       <td style={{ ...stickyCell, textAlign: 'left', fontFamily: SANS }}>
         <div style={{ fontWeight: 600, color: C.ink, whiteSpace: 'nowrap' }}>{player.name}</div>
         <div style={{ fontSize: 10, color: C.ink2 }}>plays off {ph}</div>
       </td>
-      {holes.map((h) => (
+      {holes.slice(0, 9).map((h) => (
         <ScoreCell
           key={h}
           playerId={player.id}
@@ -881,20 +944,34 @@ function PlayerRow({ player, ph, day, scores, pts, holeBest }) {
           si={day.si[h]}
           ph={ph}
           gross={scores[h]}
-          fallbackPts={pts[h]}
-          holeBest={holeBest}
+          isWinner={!!(pairWinners && pairWinners[h] && pairWinners[h].includes(player.id))}
         />
       ))}
-      {[[0, 9], [9, 18], [0, 18]].map(([a, b], i) => (
-        <td key={i} style={{ ...cellBase, background: '#F6F7F3', fontWeight: 700, fontSize: 13 }}>
-          {range(a, b)}
-        </td>
+      <td style={{ ...cellBase, background: '#F6F7F3', fontWeight: 700, fontSize: 13 }}>{range(0, 9)}</td>
+      {holes.slice(9, 18).map((h) => (
+        <ScoreCell
+          key={h}
+          playerId={player.id}
+          dayId={day.id}
+          h={h}
+          par={day.par[h]}
+          si={day.si[h]}
+          ph={ph}
+          gross={scores[h]}
+          isWinner={!!(pairWinners && pairWinners[h] && pairWinners[h].includes(player.id))}
+        />
       ))}
+      <td style={{ ...cellBase, background: '#F6F7F3', fontWeight: 700, fontSize: 13 }}>{range(9, 18)}</td>
+      <td style={{ ...cellBase, background: '#F6F7F3', fontWeight: 700, fontSize: 13 }}>{range(0, 18)}</td>
+      <td style={{ ...cellBase, background: '#F6F7F3', fontWeight: 700, fontSize: 13 }}>
+        {anyPlayed(0, 18) ? grossTotal : '–'}
+      </td>
+      <td style={{ ...cellBase, background: '#F6F7F3', fontWeight: 700, fontSize: 13, color: toParColor }}>{toPar}</td>
     </tr>
   );
 }
 
-function ScoreCell({ playerId, dayId, h, par, si, ph, gross, fallbackPts, holeBest }) {
+function ScoreCell({ playerId, dayId, h, par, si, ph, gross, isWinner }) {
   const commit = (v) => {
     if (v != null && (isNaN(v) || v < 1 || v > 20)) return;
     api.setScore(dayId, playerId, h, v);
@@ -907,7 +984,6 @@ function ScoreCell({ playerId, dayId, h, par, si, ph, gross, fallbackPts, holeBe
   const p = local == null || local === '' ? null : stableford(Number(local), par, shots);
   const displayGross = local == null || local === '' ? null : Number(local);
   const net = displayGross != null ? displayGross - shots : null;
-  const isBest = p != null && p > 0 && holeBest && holeBest[h] != null && p === holeBest[h];
   const mark = scoreMark(displayGross, par);
 
   return (
@@ -915,7 +991,7 @@ function ScoreCell({ playerId, dayId, h, par, si, ph, gross, fallbackPts, holeBe
       <div
         style={{
           borderRadius: 6,
-          border: (isBest ? 1.5 : 1) + 'px solid ' + (isBest ? C.sun : C.line),
+          border: (isWinner ? 1.5 : 1) + 'px solid ' + (isWinner ? C.good : C.line),
           background: '#fff',
           position: 'relative',
           padding: '4px 0 2px',
@@ -980,6 +1056,20 @@ const stickyHead = { ...cellHead, position: 'sticky', left: 0, zIndex: 3, minWid
 const cellMuted = { ...cellBase, background: '#FAFBF8', color: C.ink2, padding: '5px 0' };
 
 /* ----------------------------- Team leaderboard --------------------------- */
+
+function playerBreakdownText(state, d, day, team) {
+  if (!team.players.length) return '';
+  if (day.format === 'betterball') {
+    return team.players
+      .map((pid) => {
+        const holesWon = (d.pairContribution[day.id][team.id] || []).filter((arr) => arr.includes(pid)).length;
+        return d.byId[pid].name + ' won ' + holesWon + ' hole' + (holesWon === 1 ? '' : 's');
+      })
+      .join(' · ');
+  }
+  const parts = team.players.map((pid) => d.byId[pid].name + ' ' + d.playerTotal(day.id, pid));
+  return parts.join(' + ') + ' = ' + team.players.reduce((a, pid) => a + d.playerTotal(day.id, pid), 0);
+}
 
 function TeamsTab({ state, d, standings }) {
   const [openId, setOpenId] = useState(null);
@@ -1084,14 +1174,21 @@ function TeamsTab({ state, d, standings }) {
           </H>
           {standings.dayResults[day.id].groups.map((g, gi) =>
             g.map((it) => (
-              <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid ' + C.line }}>
-                <div style={{ width: 26, fontFamily: MONO, color: C.ink2, fontSize: 12 }}>{ORDINALS[gi]}</div>
-                <div style={{ width: 6, height: 20, background: it.team.colour, borderRadius: 2 }} />
-                <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink }}>{it.team.name}</div>
-                <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.ink }}>{it.total}</div>
-                <div style={{ width: 42, textAlign: 'right', fontFamily: MONO, fontSize: 13, color: C.clay }}>
-                  +{fmt(standings.dayResults[day.id].points[it.id] || 0)}
+              <div key={it.id} style={{ padding: '6px 0', borderBottom: '1px solid ' + C.line }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 26, fontFamily: MONO, color: C.ink2, fontSize: 12 }}>{ORDINALS[gi]}</div>
+                  <div style={{ width: 6, height: 20, background: it.team.colour, borderRadius: 2 }} />
+                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink }}>{it.team.name}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.ink }}>{it.total}</div>
+                  <div style={{ width: 42, textAlign: 'right', fontFamily: MONO, fontSize: 13, color: C.clay }}>
+                    +{fmt(standings.dayResults[day.id].points[it.id] || 0)}
+                  </div>
                 </div>
+                {standings.dayResults[day.id].started && (
+                  <div style={{ fontSize: 11, color: C.ink2, marginLeft: 42, marginTop: 2 }}>
+                    {playerBreakdownText(state, d, day, it.team)}
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -1321,6 +1418,84 @@ function AwardRow({ aw, state }) {
         </Btn>
         <TwoTap label="Delete" confirmLabel="Sure?" onConfirm={() => api.deleteAward(aw.id)} />
       </div>
+    </div>
+  );
+}
+
+/* --------------------------------- Overview -------------------------------- */
+
+function formatExplain(format) {
+  return format === 'betterball'
+    ? "Both partners play their own ball on every hole. Only the better (higher-points) of the two scores counts toward the pair's total for that hole."
+    : "Both partners play their own ball on every hole, and their stableford points are added together — every hole, from both players, counts.";
+}
+
+function OverviewTab({ state }) {
+  const enabledIndiv = ['d1', 'd2', 'combined'].filter((k) => state.individual[k] && state.individual[k].enabled);
+  return (
+    <div>
+      <Panel>
+        <H sub="Two days, three pairs. Team points, individual points, and bonus points all add up to the overall team standings.">
+          How it works
+        </H>
+        <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.6 }}>
+          Every hole is scored as <strong>net stableford points</strong>: 2 points for a net par, +1 for every shot
+          better, -1 for every shot worse, floored at 0. A team's overall total is the sum of whatever they earn from
+          the two days' team competitions, individual results (if switched on), and any bonus awards.
+        </div>
+      </Panel>
+
+      {state.days.map((day) => (
+        <Panel key={day.id}>
+          <H sub={day.course || 'Course to be confirmed'}>
+            {day.label} — {formatName(day.format)}
+          </H>
+          <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.6, marginBottom: 10 }}>{formatExplain(day.format)}</div>
+          <div style={{ fontSize: 12, color: C.ink2 }}>
+            Handicap allowance: <strong style={{ color: C.ink }}>{day.allowance}%</strong> · Team points for 1st / 2nd
+            / 3rd: <strong style={{ color: C.ink }}>{day.teamPoints.join(' / ')}</strong>
+          </div>
+          <div style={{ fontSize: 11, color: C.ink2, marginTop: 6 }}>
+            {day.format === 'betterball'
+              ? "Ties split on combined stableford, then the pair's highest individual score, then their lowest."
+              : "Ties split on the pair's highest individual score, then their lowest."}
+          </div>
+        </Panel>
+      ))}
+
+      <Panel>
+        <H sub="When switched on, finishing position in the individual stableford also hands points to that player's team.">
+          Individual points
+        </H>
+        {enabledIndiv.length === 0 && (
+          <div style={{ fontSize: 13, color: C.ink2 }}>Not currently switched on for any table — see Extras.</div>
+        )}
+        {enabledIndiv.map((key) => (
+          <div key={key} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, marginBottom: 4 }}>
+              {key === 'combined' ? 'Overall (Day 1 + Day 2)' : key === 'd1' ? 'Day 1' : 'Day 2'}
+            </div>
+            <div style={{ fontSize: 12, color: C.ink2 }}>
+              Points for 1st–6th: <strong style={{ color: C.ink }}>{state.individual[key].points.join(' / ')}</strong>
+              . Ties share the points for the places they cover evenly.
+            </div>
+          </div>
+        ))}
+      </Panel>
+
+      <Panel>
+        <H sub="Longest drive, closest to the pin, or anything else the group fancies paying out on — set up in Extras.">
+          Bonus points
+        </H>
+        {state.awards.length === 0 && <div style={{ fontSize: 13, color: C.ink2 }}>No bonus awards set up yet.</div>}
+        {state.awards.map((aw) => (
+          <div key={aw.id} style={{ fontSize: 12, color: C.ink2, marginBottom: 4 }}>
+            <strong style={{ color: C.ink }}>{aw.name}</strong> ({aw.scope === 'team' ? 'team award' : 'player award'})
+            — {aw.values.join(' / ')} points for {ORDINALS.slice(0, aw.values.length).join(' / ')}. Points for a
+            player go straight to their team.
+          </div>
+        ))}
+      </Panel>
     </div>
   );
 }
@@ -1572,12 +1747,13 @@ function AddSelection({ onAdd }) {
 /* ---------------------------------- shell --------------------------------- */
 
 const TABS = [
+  ['overview', 'Overview'],
   ['card', 'Scorecard'],
-  ['teams', 'Teams'],
-  ['players', 'Players'],
+  ['teams', 'Team Standings'],
+  ['players', 'Player Standings'],
   ['extras', 'Extras'],
-  ['book', 'Book'],
   ['setup', 'Setup'],
+  ['book', 'Book'],
 ];
 
 export default function App() {
@@ -1669,12 +1845,13 @@ function Shell({ state, tab, setTab }) {
       </nav>
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: 12 }} className="pop" key={tab}>
+        {tab === 'overview' && <OverviewTab state={state} />}
         {tab === 'card' && <ScorecardTab state={state} d={d} standings={standings} />}
         {tab === 'teams' && <TeamsTab state={state} d={d} standings={standings} />}
         {tab === 'players' && <IndividualsTab state={state} d={d} standings={standings} />}
         {tab === 'extras' && <ExtrasTab state={state} d={d} />}
-        {tab === 'book' && <BookTab state={state} d={d} />}
         {tab === 'setup' && <SetupTab state={state} d={d} />}
+        {tab === 'book' && <BookTab state={state} d={d} />}
         <div style={{ textAlign: 'center', fontSize: 11, color: C.ink2, padding: '14px 0' }}>
           {state.title} · {VERSION}
         </div>
