@@ -1060,6 +1060,65 @@ function playerBreakdownText(state, d, day, team) {
   return parts.join(' + ') + ' = ' + team.players.reduce((a, pid) => a + d.playerTotal(day.id, pid), 0);
 }
 
+// Teams sharing the same overall total but landing at different ranks were
+// separated by the tiebreak (combined raw stableford across both days) --
+// show the working so it's clear why one finished above the other.
+function TiebreakExplainers({ state, d, standings }) {
+  const items = standings.teamOrder.flatMap((g, gi) => g.map((it) => ({ ...it, gi })));
+  const byTotal = new Map();
+  items.forEach((it) => {
+    if (!byTotal.has(it.total)) byTotal.set(it.total, []);
+    byTotal.get(it.total).push(it);
+  });
+  const clusters = [...byTotal.values()]
+    .filter((arr) => new Set(arr.map((it) => it.gi)).size > 1)
+    .sort((a, b) => Math.min(...a.map((x) => x.gi)) - Math.min(...b.map((x) => x.gi)));
+
+  if (!clusters.length) return null;
+
+  return (
+    <Panel>
+      <H sub="When teams share the same overall points, ties are broken by combined raw stableford across both days.">
+        How ties were broken
+      </H>
+      {clusters.map((cluster, ci) => {
+        const ranked = [...cluster].sort((a, b) => a.gi - b.gi);
+        return (
+          <div
+            key={ci}
+            style={{
+              marginBottom: ci === clusters.length - 1 ? 0 : 14,
+              paddingBottom: ci === clusters.length - 1 ? 0 : 14,
+              borderBottom: ci === clusters.length - 1 ? 'none' : '1px solid ' + C.line,
+            }}
+          >
+            <div style={{ fontSize: 13, color: C.ink, marginBottom: 6 }}>
+              <strong>{ranked.map((it) => it.team.name).join(' and ')}</strong> were all on{' '}
+              <strong style={{ fontFamily: MONO }}>{ranked[0].total}</strong> points overall.
+            </div>
+            {ranked.map((it, i) => {
+              const raw = state.days.map((day) => ({ day, val: d.teamTotal(day.id, it.team) }));
+              const rawSum = raw.reduce((a, r) => a + r.val, 0);
+              const stillTiedWithNext = ranked[i + 1] && ranked[i + 1].gi === it.gi;
+              return (
+                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.ink2, padding: '3px 0' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: it.team.colour, flex: '0 0 auto' }} />
+                  <span style={{ flex: 1 }}>
+                    <strong style={{ color: C.ink }}>{it.team.name}</strong>:{' '}
+                    {raw.map((r) => r.day.label + ' ' + r.val).join(' + ')} ={' '}
+                    <strong style={{ color: C.ink, fontFamily: MONO }}>{rawSum}</strong>
+                  </span>
+                  {stillTiedWithNext && <Tag tone="grey">Still tied</Tag>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </Panel>
+  );
+}
+
 function TeamsTab({ state, d, standings }) {
   const [openId, setOpenId] = useState(null);
   const anyStarted = state.days.some((day) => standings.dayResults[day.id].started);
@@ -1148,6 +1207,8 @@ function TeamsTab({ state, d, standings }) {
           );
         });
       })}
+
+      <TiebreakExplainers state={state} d={d} standings={standings} />
 
       {state.days.map((day) => (
         <Panel key={day.id}>
