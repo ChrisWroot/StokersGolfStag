@@ -889,7 +889,7 @@ function ScorecardTab({ state, d, standings }) {
         <div style={{ padding: '10px 14px', fontSize: 11, color: C.ink2, borderTop: '1px solid ' + C.line, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>Enter gross strokes — net and points fill in underneath.</span>
           {day.format === 'betterball' && (
-            <Legend swatch={{ background: '#fff', border: '1.5px solid ' + C.good }}>Counted for the pair</Legend>
+            <Legend swatch={{ background: '#DCEEE1', border: '1px solid #B9DDC5' }}>Counted for the pair</Legend>
           )}
           <Legend swatch={{ background: '#fff', border: '1.3px solid ' + C.ink, borderRadius: 12 }}>Birdie or better</Legend>
           <Legend swatch={{ background: '#fff', border: '1.3px solid ' + C.ink, borderRadius: 3 }}>Bogey or worse</Legend>
@@ -975,8 +975,8 @@ function ScoreCell({ playerId, dayId, h, par, si, ph, gross, isWinner }) {
       <div
         style={{
           borderRadius: 6,
-          border: (isWinner ? 1.5 : 1) + 'px solid ' + (isWinner ? C.good : C.line),
-          background: '#fff',
+          border: '1px solid ' + (isWinner ? '#B9DDC5' : C.line),
+          background: isWinner ? '#DCEEE1' : '#fff',
           position: 'relative',
           padding: '4px 0 2px',
         }}
