@@ -1853,8 +1853,8 @@ function Shell({ state, tab, setTab }) {
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>{state.subtitle}</div>
-              <div style={{ fontSize: 12, color: '#9DB6CE', marginTop: 5 }}>Two days, three pairs</div>
+              <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6, lineHeight: 1 }}>{state.title}</div>
+              <div style={{ fontSize: 12, color: '#9DB6CE', marginTop: 5 }}>{state.subtitle}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: MONO, fontSize: 12, color: '#9DB6CE' }}>Leading</div>
