@@ -528,6 +528,8 @@ function SetupTab({ state, d }) {
         </Panel>
       ))}
 
+      <ExtrasTab state={state} />
+
       <Panel>
         <H sub="Fills in six players, three teams, real handicaps, a full Day 1 and a Day 2 in progress — so there's something on every tab to look at.">
           Load demo data
@@ -1044,12 +1046,19 @@ const cellMuted = { ...cellBase, background: '#FAFBF8', color: C.ink2, padding: 
 function playerBreakdownText(state, d, day, team) {
   if (!team.players.length) return '';
   if (day.format === 'betterball') {
-    return team.players
-      .map((pid) => {
-        const holesWon = (d.pairContribution[day.id][team.id] || []).filter((arr) => arr.includes(pid)).length;
-        return d.byId[pid].name + ' won ' + holesWon + ' hole' + (holesWon === 1 ? '' : 's');
-      })
-      .join(' · ');
+    const contrib = d.pairContribution[day.id][team.id] || [];
+    const solo = {};
+    team.players.forEach((pid) => (solo[pid] = 0));
+    let joint = 0;
+    contrib.forEach((arr) => {
+      if (arr.length === 2) joint++;
+      else if (arr.length === 1) solo[arr[0]] = (solo[arr[0]] || 0) + 1;
+    });
+    const parts = team.players.map(
+      (pid) => d.byId[pid].name + ' - ' + solo[pid] + ' hole' + (solo[pid] === 1 ? '' : 's')
+    );
+    if (joint > 0) parts.push(joint + ' joint');
+    return parts.join(' · ');
   }
   const parts = team.players.map((pid) => d.byId[pid].name + ' ' + d.playerTotal(day.id, pid));
   return parts.join(' + ') + ' = ' + team.players.reduce((a, pid) => a + d.playerTotal(day.id, pid), 0);
@@ -1197,7 +1206,7 @@ function TeamsTab({ state, d, standings }) {
       />
       <PointSourcePanel
         title="Bonus"
-        sub="Points each team picked up from awards set up in Scoring Bonus."
+        sub="Points each team picked up from awards set up in Setup."
         state={state}
         standings={standings}
         field="bonus"
@@ -1332,7 +1341,7 @@ function IndividualsTab({ state, d, standings }) {
           Net stableford off full handicap for the day.
           {cfg && cfg.enabled
             ? ' Points shown in orange go to the player’s team.'
-            : ' This table is not awarding team points — turn it on in Scoring Bonus.'}
+            : ' This table is not awarding team points — turn it on in Setup.'}
         </div>
       </Panel>
     </div>
@@ -1526,7 +1535,7 @@ function OverviewTab({ state }) {
 
         <TimelineStep colour={TIMELINE_COLOURS.indiv} mark={3} title="Individual results">
           {enabledIndiv.length === 0 ? (
-            'Not currently switched on for any table — see Scoring Bonus.'
+            'Not currently switched on for any table — see Setup.'
           ) : (
             <>
               When switched on, a player's finishing position in net stableford hands points straight to their team.{' '}
@@ -1545,10 +1554,10 @@ function OverviewTab({ state }) {
 
         <TimelineStep colour={TIMELINE_COLOURS.bonus} mark={4} title="Bonus awards">
           {state.awards.length === 0 ? (
-            'No bonus awards set up yet — add some in Scoring Bonus.'
+            'No bonus awards set up yet — add some in Setup.'
           ) : (
             <>
-              Longest drive, closest to the pin, and anything else the group sets up in Scoring Bonus — straight to
+              Longest drive, closest to the pin, and anything else the group sets up in Setup — straight to
               the winner's team.{' '}
               {state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')').join(' · ')}.
             </>
@@ -1621,7 +1630,7 @@ function BookTab({ state }) {
   return (
     <div>
       <Panel>
-        <H sub="Decimal odds. Set them yourself, take the money, settle when it's done.">The book</H>
+        <H sub="Decimal odds. Set them yourself, take the money, settle when it's done.">The sportsbook</H>
         <div style={{ display: 'flex', gap: 8 }}>
           <input style={{ ...inputStyle, flex: 1 }} placeholder="New market name" value={newMarket} onChange={(e) => setNewMarket(e.target.value)} />
           <Btn onClick={addMarket}>Add</Btn>
@@ -1814,9 +1823,8 @@ const TABS = [
   ['card', 'Scorecard'],
   ['teams', 'Team Standings'],
   ['players', 'Player Standings'],
-  ['extras', 'Scoring Bonus'],
   ['setup', 'Setup'],
-  ['book', 'Book'],
+  ['book', 'Sportsbook'],
 ];
 
 export default function App() {
@@ -1910,7 +1918,6 @@ function Shell({ state, tab, setTab }) {
         {tab === 'card' && <ScorecardTab state={state} d={d} standings={standings} />}
         {tab === 'teams' && <TeamsTab state={state} d={d} standings={standings} />}
         {tab === 'players' && <IndividualsTab state={state} d={d} standings={standings} />}
-        {tab === 'extras' && <ExtrasTab state={state} d={d} />}
         {tab === 'setup' && <SetupTab state={state} d={d} />}
         {tab === 'book' && <BookTab state={state} d={d} />}
         <div style={{ textAlign: 'center', fontSize: 11, color: C.ink2, padding: '14px 0' }}>
