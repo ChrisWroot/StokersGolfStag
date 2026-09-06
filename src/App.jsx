@@ -1416,6 +1416,40 @@ function formatExplain(format) {
     : "Both partners play their own ball on every hole, and their stableford points are added together — every hole, from both players, counts.";
 }
 
+const TIMELINE_COLOURS = { day1: C.sea, day2: C.olive, indiv: C.sun, bonus: C.clay };
+
+function TimelineStep({ colour, mark, title, children, last }) {
+  return (
+    <div style={{ position: 'relative', paddingLeft: 28, paddingBottom: last ? 0 : 20 }}>
+      {!last && (
+        <div style={{ position: 'absolute', left: 9, top: 22, bottom: 0, width: 2, background: C.line }} />
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 1,
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: mark === 'total' ? C.ink : '#fff',
+          border: '2.5px solid ' + (mark === 'total' ? C.ink : colour),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 10,
+          fontWeight: 800,
+          color: mark === 'total' ? '#fff' : colour === C.sun ? '#8A5A0A' : colour,
+        }}
+      >
+        {mark}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink, marginBottom: 3 }}>{title}</div>
+      <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.55 }}>{children}</div>
+    </div>
+  );
+}
+
 function OverviewTab({ state }) {
   const enabledIndiv = ['d1', 'd2', 'combined'].filter((k) => state.individual[k] && state.individual[k].enabled);
   return (
@@ -1426,60 +1460,57 @@ function OverviewTab({ state }) {
         </H>
         <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.6 }}>
           Every hole is scored as <strong>net stableford points</strong>: 2 points for a net par, +1 for every shot
-          better, -1 for every shot worse, floored at 0. A team's overall total is the sum of whatever they earn from
-          the two days' team competitions, individual results (if switched on), and any bonus awards.
+          better, -1 for every shot worse, floored at 0.
         </div>
       </Panel>
 
-      {state.days.map((day) => (
-        <Panel key={day.id}>
-          <H sub={day.course || 'Course to be confirmed'}>
-            {day.label} — {formatName(day.format)}
-          </H>
-          <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.6, marginBottom: 10 }}>{formatExplain(day.format)}</div>
-          <div style={{ fontSize: 12, color: C.ink2 }}>
-            Team points for 1st / 2nd / 3rd: <strong style={{ color: C.ink }}>{day.teamPoints.join(' / ')}</strong>
-          </div>
-          <div style={{ fontSize: 11, color: C.ink2, marginTop: 6 }}>
+      <Panel>
+        <H sub="How a team's total is put together, step by step.">How the standings are built</H>
+
+        {state.days.map((day, i) => (
+          <TimelineStep key={day.id} colour={i === 0 ? TIMELINE_COLOURS.day1 : TIMELINE_COLOURS.day2} mark={i + 1} title={day.label + ' — ' + formatName(day.format)}>
+            {formatExplain(day.format)} Team points for 1st / 2nd / 3rd:{' '}
+            <strong style={{ color: C.ink, fontFamily: MONO }}>{day.teamPoints.join(' / ')}</strong>.{' '}
             {day.format === 'betterball'
               ? "Ties split on combined stableford, then the pair's highest individual score, then their lowest."
               : "Ties split on the pair's highest individual score, then their lowest."}
-          </div>
-        </Panel>
-      ))}
-
-      <Panel>
-        <H sub="When switched on, finishing position in the individual stableford also hands points to that player's team.">
-          Individual points
-        </H>
-        {enabledIndiv.length === 0 && (
-          <div style={{ fontSize: 13, color: C.ink2 }}>Not currently switched on for any table — see Extras.</div>
-        )}
-        {enabledIndiv.map((key) => (
-          <div key={key} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, marginBottom: 4 }}>
-              {key === 'combined' ? 'Overall (Day 1 + Day 2)' : key === 'd1' ? 'Day 1' : 'Day 2'}
-            </div>
-            <div style={{ fontSize: 12, color: C.ink2 }}>
-              Points for 1st–6th: <strong style={{ color: C.ink }}>{state.individual[key].points.join(' / ')}</strong>
-              . Ties share the points for the places they cover evenly.
-            </div>
-          </div>
+          </TimelineStep>
         ))}
-      </Panel>
 
-      <Panel>
-        <H sub="Longest drive, closest to the pin, or anything else the group fancies paying out on — set up in Extras.">
-          Bonus points
-        </H>
-        {state.awards.length === 0 && <div style={{ fontSize: 13, color: C.ink2 }}>No bonus awards set up yet.</div>}
-        {state.awards.map((aw) => (
-          <div key={aw.id} style={{ fontSize: 12, color: C.ink2, marginBottom: 4 }}>
-            <strong style={{ color: C.ink }}>{aw.name}</strong> ({aw.scope === 'team' ? 'team award' : 'player award'})
-            — {aw.values.join(' / ')} points for {ORDINALS.slice(0, aw.values.length).join(' / ')}. Points for a
-            player go straight to their team.
-          </div>
-        ))}
+        <TimelineStep colour={TIMELINE_COLOURS.indiv} mark={3} title="Individual results">
+          {enabledIndiv.length === 0 ? (
+            'Not currently switched on for any table — see Extras.'
+          ) : (
+            <>
+              When switched on, a player's finishing position in net stableford hands points straight to their team.{' '}
+              {enabledIndiv
+                .map(
+                  (key) =>
+                    (key === 'combined' ? 'Overall' : key === 'd1' ? 'Day 1' : 'Day 2') +
+                    ' ' +
+                    state.individual[key].points.join('/')
+                )
+                .join(' · ')}
+              .
+            </>
+          )}
+        </TimelineStep>
+
+        <TimelineStep colour={TIMELINE_COLOURS.bonus} mark={4} title="Bonus awards">
+          {state.awards.length === 0 ? (
+            'No bonus awards set up yet — add some in Extras.'
+          ) : (
+            <>
+              Longest drive, closest to the pin, and anything else the group sets up in Extras — straight to the
+              winner's team.{' '}
+              {state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')').join(' · ')}.
+            </>
+          )}
+        </TimelineStep>
+
+        <TimelineStep mark="★" title="Team total" last>
+          All four add up to the number on the Team Standings tab.
+        </TimelineStep>
       </Panel>
     </div>
   );
