@@ -1536,6 +1536,75 @@ function formatExplainBullets(format) {
 
 const TIMELINE_COLOURS = { day1: C.sea, day2: C.olive, indiv: C.sun, bonus: C.clay };
 
+const BoldPoints = ({ children }) => <strong style={{ color: C.ink, fontFamily: MONO }}>{children}</strong>;
+
+// One bullet per distinct points schedule, "For each day" when Day 1 and
+// Day 2 happen to share the same one instead of repeating it twice.
+function individualPointsBullets(state, enabledIndiv) {
+  const d1 = enabledIndiv.includes('d1') ? state.individual.d1.points : null;
+  const d2 = enabledIndiv.includes('d2') ? state.individual.d2.points : null;
+  const bullets = [];
+  if (d1 && d2 && d1.join(',') === d2.join(',')) {
+    bullets.push(
+      <>
+        For each day: <BoldPoints>{d1.join(' / ')}</BoldPoints>
+      </>
+    );
+  } else {
+    if (d1)
+      bullets.push(
+        <>
+          Day 1: <BoldPoints>{d1.join(' / ')}</BoldPoints>
+        </>
+      );
+    if (d2)
+      bullets.push(
+        <>
+          Day 2: <BoldPoints>{d2.join(' / ')}</BoldPoints>
+        </>
+      );
+  }
+  if (enabledIndiv.includes('combined'))
+    bullets.push(
+      <>
+        Overall: <BoldPoints>{state.individual.combined.points.join(' / ')}</BoldPoints>
+      </>
+    );
+  return bullets;
+}
+
+// Tries to fold "Longest drive — Day 1 (1)" + "Longest drive — Day 2 (1)" +
+// "Closest to the pin — Day 1 (1)" + "...Day 2 (1)" into one readable
+// sentence. Only fires when every award is worth the same points and pairs
+// cleanly across both days by name; otherwise the caller lists them as-is.
+function summarizeBonusAwards(state) {
+  const awards = state.awards;
+  if (!awards.length) return null;
+  if (!awards.every((aw) => aw.values.length === 1)) return null;
+  const values = new Set(awards.map((aw) => aw.values[0]));
+  if (values.size !== 1) return null;
+
+  const dayNames = state.days.map((d) => d.label);
+  const parsed = awards.map((aw) => {
+    const day = dayNames.find((label) => aw.name.endsWith(' — ' + label));
+    return { base: day ? aw.name.slice(0, -(' — ' + day).length) : aw.name, day };
+  });
+  if (!parsed.every((p) => p.day)) return null;
+
+  const bases = [...new Set(parsed.map((p) => p.base))];
+  const coversAllDays = bases.every((base) => {
+    const daysForBase = new Set(parsed.filter((p) => p.base === base).map((p) => p.day));
+    return dayNames.every((label) => daysForBase.has(label));
+  });
+  if (!coversAllDays) return null;
+
+  const value = [...values][0];
+  const label = value === 1 ? 'One point' : value + ' points';
+  const names = bases.map((b) => b.toLowerCase());
+  const joined = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  return label + ' for ' + joined + ' on both days';
+}
+
 function BulletList({ items }) {
   return (
     <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1582,6 +1651,7 @@ function TimelineStep({ colour, mark, title, children, last }) {
 
 function OverviewTab({ state }) {
   const enabledIndiv = ['d1', 'd2', 'combined'].filter((k) => state.individual[k] && state.individual[k].enabled);
+  const bonusSummary = summarizeBonusAwards(state);
   return (
     <div>
       <Panel>
@@ -1620,12 +1690,7 @@ function OverviewTab({ state }) {
             <BulletList
               items={[
                 "A player's finishing position in net stableford hands points straight to their team.",
-                ...enabledIndiv.map(
-                  (key) =>
-                    (key === 'combined' ? 'Overall' : key === 'd1' ? 'Day 1' : 'Day 2') +
-                    ' ' +
-                    state.individual[key].points.join('/')
-                ),
+                ...individualPointsBullets(state, enabledIndiv),
               ]}
             />
           )}
@@ -1638,7 +1703,7 @@ function OverviewTab({ state }) {
             <BulletList
               items={[
                 'Longest drive, closest to the pin, and anything else the group sets up in Setup — straight to the winner’s team.',
-                ...state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')'),
+                ...(bonusSummary ? [bonusSummary] : state.awards.map((aw) => aw.name + ' (' + aw.values.join('/') + ')')),
               ]}
             />
           )}
@@ -1649,8 +1714,8 @@ function OverviewTab({ state }) {
             items={[
               'All four add up to the number on the Team Standings tab.',
               "If two teams are still tied on that total, it's broken by combined raw stableford across both days — " +
-                state.days.map((day) => day.label + "'s " + formatName(day.format).toLowerCase() + ' total').join(' plus '),
-              'Whichever team scored higher over both rounds wins the tie.',
+                state.days.map((day) => day.label + "'s " + formatName(day.format).toLowerCase() + ' total').join(' plus ') +
+                ', highest score wins!',
             ]}
           />
         </TimelineStep>
