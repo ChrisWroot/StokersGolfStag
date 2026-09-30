@@ -27,6 +27,12 @@ export async function updatePlayer(id, patch) {
   must(await supabase.from('players').update(patch).eq('id', id));
 }
 
+// value === null clears the override, falling back to the player's base hcp.
+export async function updatePlayerDayHcp(playerId, dayId, value) {
+  const column = dayId === 'd1' ? 'hcp_d1' : 'hcp_d2';
+  must(await supabase.from('players').update({ [column]: value }).eq('id', playerId));
+}
+
 export async function assignPlayerTeam(playerId, teamId) {
   must(await supabase.from('players').update({ team_id: teamId || null }).eq('id', playerId));
 }

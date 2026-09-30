@@ -72,6 +72,24 @@ function useLocalDebounced(value, commit, delay = 400) {
 
 /* --------------------------------- selectors ------------------------------- */
 
+// A player's handicap for a given day: their per-day override if one is set,
+// otherwise their base handicap. Keeps a completed day's scoring frozen even
+// if someone's base handicap is edited afterward for a later day.
+function effectiveHcp(player, dayId) {
+  const override = dayId === 'd1' ? player.hcpD1 : dayId === 'd2' ? player.hcpD2 : null;
+  return override != null ? override : player.hcp;
+}
+
+// For display: a single number for a specific day, or "X (D1) / Y (D2)" in
+// the combined view when an override makes the two days actually differ.
+function handicapLabel(player, view) {
+  if (view === 'd1') return effectiveHcp(player, 'd1');
+  if (view === 'd2') return effectiveHcp(player, 'd2');
+  const h1 = effectiveHcp(player, 'd1');
+  const h2 = effectiveHcp(player, 'd2');
+  return h1 === h2 ? h1 : h1 + ' (D1) / ' + h2 + ' (D2)';
+}
+
 function useDerived(state) {
   return useMemo(() => {
     const byId = {};
@@ -83,7 +101,7 @@ function useDerived(state) {
     state.days.forEach((day) => {
       points[day.id] = {};
       const ph = {};
-      state.players.forEach((p) => (ph[p.id] = playingHcp(p.hcp, 100)));
+      state.players.forEach((p) => (ph[p.id] = playingHcp(effectiveHcp(p, day.id), 100)));
       state.players.forEach((p) => {
         const row = (state.scores[day.id] && state.scores[day.id][p.id]) || Array(18).fill(null);
         points[day.id][p.id] = row.map((g, i) =>
@@ -521,6 +539,7 @@ function SetupTab({ state, d }) {
             </Field>
           </div>
           <CourseEditor day={day} />
+          <HandicapOverrides day={day} players={state.players} />
         </Panel>
       ))}
 
@@ -651,6 +670,52 @@ function CourseEditor({ day }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function HandicapOverrides({ day, players }) {
+  const [open, setOpen] = useState(false);
+  const field = day.id === 'd1' ? 'hcpD1' : 'hcpD2';
+  const anySet = players.some((p) => p[field] != null);
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 12, color: C.ink2 }}>
+          {anySet ? 'Some handicaps overridden for this day.' : 'Everyone uses their base handicap for this day.'}
+        </div>
+        <Btn small onClick={() => setOpen(!open)}>
+          {open ? 'Hide' : 'Handicap changes'}
+        </Btn>
+      </div>
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          {players.map((p) => (
+            <HandicapOverrideRow key={p.id} player={p} day={day} field={field} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HandicapOverrideRow({ player, day, field }) {
+  const current = player[field];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid ' + C.line }}>
+      <div style={{ flex: 1, fontSize: 13, color: C.ink }}>{player.name}</div>
+      <div style={{ fontSize: 11, color: C.ink2 }}>base {player.hcp}</div>
+      <input
+        key={current}
+        style={{ ...numStyle, width: 56 }}
+        inputMode="numeric"
+        placeholder={String(player.hcp)}
+        defaultValue={current == null ? '' : current}
+        onBlur={(e) => {
+          const v = e.target.value;
+          api.updatePlayerDayHcp(player.id, day.id, v === '' ? null : Number(v));
+        }}
+      />
     </div>
   );
 }
@@ -809,7 +874,7 @@ function ScorecardTab({ state, d, standings }) {
               </tr>
 
               {state.teams.map((t) => {
-                const ph = t.players.map((pid) => playingHcp(d.byId[pid].hcp, 100));
+                const ph = t.players.map((pid) => playingHcp(effectiveHcp(d.byId[pid], day.id), 100));
                 const pairWinners = day.format === 'betterball' ? d.pairContribution[day.id][t.id] : null;
                 return (
                   <React.Fragment key={t.id}>
@@ -872,7 +937,7 @@ function ScorecardTab({ state, d, standings }) {
                     <PlayerRow
                       key={p.id}
                       player={p}
-                      ph={playingHcp(p.hcp, 100)}
+                      ph={playingHcp(effectiveHcp(p, day.id), 100)}
                       day={day}
                       scores={(state.scores[day.id] && state.scores[day.id][p.id]) || Array(18).fill(null)}
                       pts={pts[p.id]}
@@ -1376,7 +1441,7 @@ function IndividualsTab({ state, d, standings }) {
                     {leader && <span style={{ color: C.sun, marginLeft: 6, fontSize: 12 }}>★</span>}
                   </div>
                   <div style={{ fontSize: 11, color: C.ink2 }}>
-                    {team ? team.name : 'No team'} · plays off {it.player.hcp}
+                    {team ? team.name : 'No team'} · plays off {handicapLabel(it.player, view)}
                   </div>
                 </div>
                 {view === 'combined' && (

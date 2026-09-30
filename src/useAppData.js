@@ -36,7 +36,13 @@ function assemble(rows) {
 
   const players = [...rows.players]
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    .map((p) => ({ id: p.id, name: p.name, hcp: Number(p.hcp) }));
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      hcp: Number(p.hcp),
+      hcpD1: p.hcp_d1 != null ? Number(p.hcp_d1) : null,
+      hcpD2: p.hcp_d2 != null ? Number(p.hcp_d2) : null,
+    }));
 
   const days = ['d1', 'd2'].map((id) => {
     const row = rows.days.find((d) => d.id === id) || {};
