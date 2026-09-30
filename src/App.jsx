@@ -462,7 +462,69 @@ function DebouncedInput({ value, onCommit, style, ...props }) {
 
 /* --------------------------------- Setup ---------------------------------- */
 
+const SETUP_UNLOCK_KEY = 'stokers-stag-setup-unlocked';
+
 function SetupTab({ state, d }) {
+  const passcode = import.meta.env.VITE_SETUP_PASSCODE;
+  const [unlocked, setUnlocked] = useState(() => {
+    if (!passcode) return true; // no passcode configured: gate is off
+    try {
+      return localStorage.getItem(SETUP_UNLOCK_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  if (!unlocked) return <SetupLock passcode={passcode} onUnlock={() => setUnlocked(true)} />;
+  return <SetupTabContent state={state} d={d} />;
+}
+
+function SetupLock({ passcode, onUnlock }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState(false);
+
+  const submit = () => {
+    if (value === passcode) {
+      try {
+        localStorage.setItem(SETUP_UNLOCK_KEY, 'true');
+      } catch {
+        /* localStorage unavailable — still unlock for this page load */
+      }
+      onUnlock();
+    } else {
+      setError(true);
+    }
+  };
+
+  return (
+    <Panel>
+      <H sub="Enter the passcode to make changes here — everyone else can still see every other tab as normal.">
+        Setup is locked
+      </H>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          style={{ ...numStyle, flex: 1 }}
+          inputMode="numeric"
+          type="password"
+          autoFocus
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(false);
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="Passcode"
+        />
+        <Btn tone="primary" onClick={submit}>
+          Unlock
+        </Btn>
+      </div>
+      {error && <div style={{ fontSize: 12, color: C.clay, marginTop: 8 }}>Wrong passcode.</div>}
+    </Panel>
+  );
+}
+
+function SetupTabContent({ state, d }) {
   const patchDay = (id, patch) => {
     const dbPatch = {};
     if ('course' in patch) dbPatch.course = patch.course;
