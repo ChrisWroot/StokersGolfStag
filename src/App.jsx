@@ -111,7 +111,6 @@ function useDerived(state) {
     });
 
     const playerTotal = (dayId, pid) => sum(points[dayId][pid] || []);
-    const playerRange = (dayId, pid, a, b) => sum((points[dayId][pid] || []).slice(a, b));
 
     const teamHole = (dayId, team, h) => {
       const day = state.days.find((d) => d.id === dayId);
@@ -124,12 +123,6 @@ function useDerived(state) {
       let t = 0;
       for (let h = 0; h < 18; h++) t += teamHole(dayId, team, h) || 0;
       return t;
-    };
-    const teamCombined = (dayId, team) =>
-      team.players.reduce((a, pid) => a + playerTotal(dayId, pid), 0);
-    const teamHighest = (dayId, team) => {
-      if (!team.players.length) return 0;
-      return Math.max(...team.players.map((pid) => playerTotal(dayId, pid)));
     };
     const dayStarted = (dayId) =>
       state.players.some((p) => ((state.scores[dayId] && state.scores[dayId][p.id]) || []).some((v) => v != null));
@@ -169,11 +162,8 @@ function useDerived(state) {
       teamOf,
       points,
       playerTotal,
-      playerRange,
       teamHole,
       teamTotal,
-      teamCombined,
-      teamHighest,
       dayStarted,
       dayComplete,
       pairContribution,
@@ -191,19 +181,10 @@ function useStandings(state, d) {
         id: t.id,
         team: t,
         total: d.teamTotal(day.id, t),
-        combined: d.teamCombined(day.id, t),
-        highest: d.teamHighest(day.id, t),
       }));
-      // With exactly two players per team, combined = highest + lowest, so once
-      // combined and highest agree, lowest is already forced to agree too --
-      // it can never break a tie and isn't worth carrying as a criterion.
-      const cmp = (a, b) => {
-        if (b.total !== a.total) return b.total - a.total;
-        if (day.format === 'betterball' && b.combined !== a.combined) return b.combined - a.combined;
-        if (b.highest !== a.highest) return b.highest - a.highest;
-        return 0;
-      };
-      const groups = rankGroups(items, cmp);
+      // No tiebreak: teams level on points share the points for the places
+      // they cover, rather than being artificially separated.
+      const groups = rankGroups(items, (a, b) => b.total - a.total);
       dayResults[day.id] = {
         groups,
         started,
@@ -218,28 +199,11 @@ function useStandings(state, d) {
         const t1 = d.playerTotal('d1', p.id);
         const t2 = d.playerTotal('d2', p.id);
         const total = key === 'd1' ? t1 : key === 'd2' ? t2 : t1 + t2;
-        const cbDay = key === 'd1' ? 'd1' : 'd2';
-        return {
-          id: p.id,
-          player: p,
-          d1: t1,
-          d2: t2,
-          total,
-          cb: [
-            key === 'combined' ? t2 : total,
-            d.playerRange(cbDay, p.id, 9, 18),
-            d.playerRange(cbDay, p.id, 12, 18),
-            d.playerRange(cbDay, p.id, 15, 18),
-            d.playerRange(cbDay, p.id, 17, 18),
-          ],
-        };
+        return { id: p.id, player: p, d1: t1, d2: t2, total };
       });
-      const cmp = (a, b) => {
-        if (b.total !== a.total) return b.total - a.total;
-        for (let i = 0; i < a.cb.length; i++) if (b.cb[i] !== a.cb[i]) return b.cb[i] - a.cb[i];
-        return 0;
-      };
-      const groups = rankGroups(items, cmp);
+      // No tiebreak: players level on points share the points for the
+      // places they cover, rather than being artificially separated.
+      const groups = rankGroups(items, (a, b) => b.total - a.total);
       return { items, groups };
     };
     indiv.d1 = mkIndiv('d1');
@@ -295,15 +259,11 @@ function useStandings(state, d) {
       L.total = L.day1 + L.day2 + L.indiv + L.bonus;
     });
 
+    // No tiebreak: teams level on overall points are shown tied, sharing the
+    // same position, rather than being artificially separated.
     const teamOrder = rankGroups(
       state.teams.map((t) => ({ id: t.id, team: t, ...ledger[t.id] })),
-      (a, b) => {
-        if (b.total !== a.total) return b.total - a.total;
-        const at = d.teamTotal('d1', a.team) + d.teamTotal('d2', a.team);
-        const bt = d.teamTotal('d1', b.team) + d.teamTotal('d2', b.team);
-        if (bt !== at) return bt - at;
-        return 0;
-      }
+      (a, b) => b.total - a.total
     );
 
     const provisional = state.days.some((day) => dayResults[day.id].started && !dayResults[day.id].complete);
@@ -1187,65 +1147,6 @@ function playerBreakdownText(state, d, day, team) {
   return parts.join(' + ') + ' = ' + team.players.reduce((a, pid) => a + d.playerTotal(day.id, pid), 0);
 }
 
-// Teams sharing the same overall total but landing at different ranks were
-// separated by the tiebreak (combined raw stableford across both days) --
-// show the working so it's clear why one finished above the other.
-function TiebreakExplainers({ state, d, standings }) {
-  const items = standings.teamOrder.flatMap((g, gi) => g.map((it) => ({ ...it, gi })));
-  const byTotal = new Map();
-  items.forEach((it) => {
-    if (!byTotal.has(it.total)) byTotal.set(it.total, []);
-    byTotal.get(it.total).push(it);
-  });
-  const clusters = [...byTotal.values()]
-    .filter((arr) => new Set(arr.map((it) => it.gi)).size > 1)
-    .sort((a, b) => Math.min(...a.map((x) => x.gi)) - Math.min(...b.map((x) => x.gi)));
-
-  if (!clusters.length) return null;
-
-  return (
-    <Panel>
-      <H sub="When teams share the same overall points, ties are broken by combined raw stableford across both days.">
-        How ties were broken
-      </H>
-      {clusters.map((cluster, ci) => {
-        const ranked = [...cluster].sort((a, b) => a.gi - b.gi);
-        return (
-          <div
-            key={ci}
-            style={{
-              marginBottom: ci === clusters.length - 1 ? 0 : 14,
-              paddingBottom: ci === clusters.length - 1 ? 0 : 14,
-              borderBottom: ci === clusters.length - 1 ? 'none' : '1px solid ' + C.line,
-            }}
-          >
-            <div style={{ fontSize: 13, color: C.ink, marginBottom: 6 }}>
-              <strong>{ranked.map((it) => it.team.name).join(' and ')}</strong> were all on{' '}
-              <strong style={{ fontFamily: MONO }}>{ranked[0].total}</strong> points overall.
-            </div>
-            {ranked.map((it, i) => {
-              const raw = state.days.map((day) => ({ day, val: d.teamTotal(day.id, it.team) }));
-              const rawSum = raw.reduce((a, r) => a + r.val, 0);
-              const stillTiedWithNext = ranked[i + 1] && ranked[i + 1].gi === it.gi;
-              return (
-                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.ink2, padding: '3px 0' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: it.team.colour, flex: '0 0 auto' }} />
-                  <span style={{ flex: 1 }}>
-                    <strong style={{ color: C.ink }}>{it.team.name}</strong>:{' '}
-                    {raw.map((r) => r.day.label + ' ' + r.val).join(' + ')} ={' '}
-                    <strong style={{ color: C.ink, fontFamily: MONO }}>{rawSum}</strong>
-                  </span>
-                  {stillTiedWithNext && <Tag tone="grey">Still tied</Tag>}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-    </Panel>
-  );
-}
-
 function TeamsTab({ state, d, standings }) {
   const [openId, setOpenId] = useState(null);
   const anyStarted = state.days.some((day) => standings.dayResults[day.id].started);
@@ -1335,8 +1236,6 @@ function TeamsTab({ state, d, standings }) {
         });
       })}
 
-      <TiebreakExplainers state={state} d={d} standings={standings} />
-
       {state.days.map((day) => (
         <Panel key={day.id}>
           <H
@@ -1372,9 +1271,7 @@ function TeamsTab({ state, d, standings }) {
             ))
           )}
           <div style={{ fontSize: 11, color: C.ink2, marginTop: 8 }}>
-            {day.format === 'betterball'
-              ? "Ties split on combined stableford, then the pair's highest individual score."
-              : "Ties split on the pair's highest individual score."}
+            Ties share the points for the places they cover evenly — no tiebreak.
           </div>
         </Panel>
       ))}
@@ -1802,9 +1699,7 @@ function OverviewTab({ state }) {
                 <>
                   Team points for 1st / 2nd / 3rd: <strong style={{ color: C.ink, fontFamily: MONO }}>{day.teamPoints.join(' / ')}</strong>.
                 </>,
-                day.format === 'betterball'
-                  ? "Ties split on combined stableford, then the pair's highest individual score."
-                  : "Ties split on the pair's highest individual score.",
+                'Ties share the points for the places they cover evenly — no tiebreak.',
               ]}
             />
           </TimelineStep>
@@ -1840,9 +1735,7 @@ function OverviewTab({ state }) {
           <BulletList
             items={[
               'All four add up to the number on the Team Standings tab.',
-              "If two teams are still tied on that total, it's broken by combined raw stableford across both days — " +
-                state.days.map((day) => day.label + "'s " + formatName(day.format).toLowerCase() + ' total').join(' plus ') +
-                ', highest score wins!',
+              'No tiebreaks anywhere — teams level on points stay level, shown tied on the same position.',
             ]}
           />
         </TimelineStep>
